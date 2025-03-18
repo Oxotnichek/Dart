@@ -1,0 +1,275 @@
+import 'package:dart_application_3/dart_application_3.dart' as dart_application_3;
+import 'dart:io';
+import 'dart:math';
+
+enum CellState { empty, ship, hit, miss }
+
+class Cell {
+  CellState state;
+  bool isHit;
+
+  Cell({this.state = CellState.empty, this.isHit = false});
+}
+
+class Board {
+  static const int size = 10;
+  List<List<Cell>> grid;
+
+  Board() : grid = List.generate(size, (_) => List.generate(size, (_) => Cell()));
+
+  void placeShip(int row, int col) {
+    if (isValidPosition(row, col)) {
+      grid[row][col].state = CellState.ship;
+    }
+  }
+
+  bool isValidPosition(int row, int col) {
+    return row >= 0 && row < size && col >= 0 && col < size && grid[row][col].state != CellState.ship;
+  }
+
+  bool isHit(int row, int col) {
+    if (isValidPosition(row, col)) {
+      if (grid[row][col].state == CellState.ship) {
+        grid[row][col].state = CellState.hit;
+        return true;
+      } else {
+        grid[row][col].state = CellState.miss;
+        return false;
+      }
+    }
+    return false;
+  }
+
+  bool checkWin() {
+    for (int i = 0; i < Board.size; i++) {
+      for (int j = 0; j < Board.size; j++) {
+        if (grid[i][j].state == CellState.ship && !grid[i][j].isHit) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+
+  CellState getCellState(int row, int col) {
+    return grid[row][col].state;
+  }
+
+  void display(bool hideShips) {
+    stdout.write('   ');
+    for (int j = 0; j < size; j++) {
+      stdout.write('$j ');
+    }
+    stdout.writeln();
+
+    stdout.write('  +');
+    for (int j = 0; j < size; j++) {
+      stdout.write('--');
+    }
+    stdout.writeln('+');
+
+    for (int i = 0; i < size; i++) {
+      stdout.write('$i |');
+
+      for (int j = 0; j < size; j++) {
+        Cell cell = grid[i][j];
+        if (hideShips && cell.state == CellState.ship && !cell.isHit) {
+          stdout.write('. ');
+        } else {
+          switch (cell.state) {
+            case CellState.empty:
+              stdout.write('. ');
+              break;
+            case CellState.ship:
+              stdout.write('S ');
+              break;
+            case CellState.hit:
+              stdout.write('X ');
+              break;
+            case CellState.miss:
+              stdout.write('O ');
+              break;
+          }
+        }
+      }
+      stdout.writeln('|');
+    }
+
+    stdout.write('  +');
+    for (int j = 0; j < size; j++) {
+      stdout.write('--');
+    }
+    stdout.writeln('+');
+  }
+}
+
+class Player {
+  Board board;
+  String name;
+  int hits;
+  int misses;
+  int shipsSunk;
+
+  Player({required this.name}) : board = Board(), hits = 0, misses = 0, shipsSunk = 0;
+
+  void placeShips() {
+    print('$name, расставьте свои корабли.');
+    List<int> shipSizes = [4, 3, 2, 1]; 
+    for (int size in shipSizes) {
+      while (true) {
+        print('Разместите корабль размером $size:');
+        stdout.write('Введите строку (1-10): ');
+        int? row = int.tryParse(stdin.readLineSync()!);
+        stdout.write('Введите столбец (1-10): ');
+        int? col = int.tryParse(stdin.readLineSync()!);
+        stdout.write('Введите направление (0 - горизонтально, 1 - вертикально): ');
+        int? direction = int.tryParse(stdin.readLineSync()!);
+
+        if (row != null && col != null && direction != null && canPlaceShip(row - 1, col - 1, size, direction == 1)) {
+          placeShip(row - 1, col - 1, size, direction == 1);
+          break;
+        } else {
+          print('Невозможно разместить корабль здесь. Попробуйте снова.');
+        }
+      }
+    }
+  }
+
+  bool canPlaceShip(int row, int col, int size, bool isVertical) {
+    for (int i = 0; i < size; i++) {
+      int r = row + (isVertical ? i : 0);
+      int c = col + (isVertical ? 0 : i);
+      if (!board.isValidPosition(r, c)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void placeShip(int row, int col, int size, bool isVertical) {
+    for (int i = 0; i < size; i++) {
+      int r = row + (isVertical ? i : 0);
+      int c = col + (isVertical ? 0 : i);
+      board.placeShip(r, c);
+    }
+  }
+
+  bool makeMove(Player opponent) {
+    while (true) {
+      stdout.write('Введите строку для атаки (1-10): ');
+      int? row = int.tryParse(stdin.readLineSync()!);
+      stdout.write('Введите столбец для атаки (1-10): ');
+      int? col = int.tryParse(stdin.readLineSync()!);
+      if (row != null && col != null && opponent.board.isValidPosition(row - 1, col - 1)) {
+        bool hit = opponent.board.isHit(row - 1, col - 1);
+        if (hit) {
+          hits++;
+          print('Попал!');
+        } else {
+          misses++;
+          print('Мимо.');
+        }
+        return hit;
+      } else {
+        print('Невозможно сделать такой ход');
+      }
+    }
+  }
+  void placeShipsAutomatically() {
+    Random rand = Random();
+    List<int> shipSizes = [4, 3, 2, 1]; 
+    for (int size in shipSizes) {
+      while (true) {
+        int row = rand.nextInt(Board.size);
+        int col = rand.nextInt(Board.size);
+        bool isVertical = rand.nextBool();
+        if (canPlaceShip(row, col, size, isVertical)) {
+          placeShip(row, col, size, isVertical);
+          break;
+        }
+      }
+    }
+  }
+}
+
+class Game {
+  Player player1;
+  Player player2;
+  bool isPlayer1Turn;
+
+  Game({required this.player1, required this.player2}) : isPlayer1Turn = true;
+
+  void start() {
+    while (true) {
+      Board currentBoard = isPlayer1Turn ? player1.board : player2.board;
+      Player currentPlayer = isPlayer1Turn ? player1 : player2;
+      Player opponent = isPlayer1Turn ? player2 : player1;
+
+      currentPlayer.board.display(false);
+      opponent.board.display(true);
+
+      bool hit = currentPlayer.makeMove(opponent);
+      if (opponent.board.checkWin()) {
+        print('${currentPlayer.name} побеждает');
+        break;
+      }
+      isPlayer1Turn = !isPlayer1Turn;
+    }
+  }
+}
+
+void main() {
+  print('Выберите режим игры:');
+  print('1. Игра против компьютера');
+  print('2. Игра 1 на 1');
+  stdout.write('Введите 1 или 2: ');
+  int? choice = int.tryParse(stdin.readLineSync()!);
+
+  if (choice == 1) {
+    Player player = Player(name: 'Игрок');
+    Player computer = Player(name: 'Компьютер');
+    player.placeShips();
+    computer.placeShipsAutomatically();
+    Game game = Game(player1: player, player2: computer);
+    game.start();
+  } else if (choice == 2) {
+    Player player1 = Player(name: 'Игрок 1');
+    Player player2 = Player(name: 'Игрок 2');
+    player1.placeShips();
+    player2.placeShips();
+    Game game = Game(player1: player1, player2: player2);
+    game.start();
+  } else {
+    print('Неверный выбор');
+  }
+}
+
+void Statistic(Player winner, Player loser) {
+  print('Статистика игры:');
+  print('Игрок ${winner.name}');
+  print('Попадания ${winner.hits}');
+  print('Промахи: ${winner.misses}');
+  print('Потопленные корабли: ${winner.shipsSunk}');
+  print('Игрок: ${loser.name}');
+  print('Попадания: ${loser.hits}');
+  print('Промахи: ${loser.misses}');
+  print('Потопленные корабли: ${loser.shipsSunk}');
+  Zapis(winner, loser);
+}
+
+void Zapis(Player winner, Player loser) {
+  File file = File('File/Zapisk.txt');
+  IOSink sink = file.openWrite();
+  sink.write('Статистика игры:\n');
+  sink.write('Игрок: ${winner.name}\n');
+  sink.write('Попадания: ${winner.hits}\n');
+  sink.write('Попадания: ${winner.hits}\n');
+  sink.write('Промахи: ${winner.misses}\n');
+  sink.write('Потопленные корабли: ${winner.shipsSunk}\n');
+  sink.write('Игрок: ${loser.name}\n');
+  sink.write('Попадания: ${loser.hits}\n');
+  sink.write('Промахи: ${loser.misses}\n');
+  sink.write('Потопленные корабли: ${loser.shipsSunk}\n');
+  sink.close();
+}
